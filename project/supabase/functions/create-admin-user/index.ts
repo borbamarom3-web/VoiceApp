@@ -17,7 +17,21 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { email, password } = await req.json();
+    const { email, password, userId } = await req.json();
+
+    if (userId && password) {
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: error.message }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      return new Response(
+        JSON.stringify({ success: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!email || !password) {
       return new Response(

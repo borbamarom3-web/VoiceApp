@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>הקול בכיתה — פלטפורמה לשינוי חברתי ובטיחות בבתי ספר</title>
+  <meta name="description" content="פלטפורמה דיגיטלית שמאפשרת לכל תלמיד להשפיע על בית הספר שלו — לדווח על עוולות בצורה אנונימית ולהציע שינויים חיוביים." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Heebo', sans-serif; }
+    html { direction: rtl; scroll-behavior: smooth; }
+    body { color: #1e293b; -webkit-font-smoothing: antialiased; }
+    .line-clamp-3 {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .spinner {
+      border: 4px solid #e2e8f0;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 0.8s linear infinite;
+    }
+    .spinner-amber { border-top-color: #f59e0b; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .animate-pulse { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+    .animate-spin { animation: spin .8s linear infinite; }
+    [data-page] { display: none; }
+    [data-page].active { display: block; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 50; align-items: center; justify-content: center; padding: 1rem; }
+    .modal-overlay.active { display: flex; }
+    .toggle-thumb { transition: transform 0.2s; }
+    .toggle-on .toggle-thumb { transform: translateX(2px); }
+    .toggle-off .toggle-thumb { transform: translateX(20px); }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+
+<!-- ===== HEADER ===== -->
+<header id="main-header" class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="flex items-center justify-between h-16">
+      <button onclick="navigate('landing')" class="flex items-center gap-2 group">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center shadow-md">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+        </div>
+        <div class="text-right">
+          <div class="font-bold text-slate-800 text-sm leading-tight">הקול בכיתה</div>
+          <div class="text-xs text-slate-400 leading-tight">קול לכל תלמיד</div>
+        </div>
+      </button>
+
+      <nav class="hidden md:flex items-center gap-1" id="desktop-nav">
+        <button onclick="navigate('landing')" data-nav="landing" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:text-slate-900 hover:bg-slate-50">בית</button>
+        <button onclick="navigate('report')" data-nav="report" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:text-slate-900 hover:bg-slate-50">דיווח חדש</button>
+        <button onclick="navigate('initiatives')" data-nav="initiatives" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:text-slate-900 hover:bg-slate-50">יוזמות תלמידים</button>
+        <button onclick="navigate('my-reports')" data-nav="my-reports" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium transition-all text-slate-600 hover:text-slate-900 hover:bg-slate-50">הדיווחים שלי</button>
+        <button id="admin-nav-btn" onclick="navigate('admin')" data-nav="admin" class="nav-btn hidden px-4 py-2 rounded-lg text-sm font-medium transition-all text-amber-600 hover:bg-amber-50 items-center gap-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          ניהול
+        </button>
+      </nav>
+
+      <div class="flex items-center gap-3">
+        <button onclick="navigate('admin')" class="hidden md:flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 transition-colors" id="admin-link-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          כניסת הנהלה
+        </button>
+        <button onclick="navigate('report')" class="hidden md:flex bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-sm font-semibold px-5 py-2 rounded-xl hover:shadow-md transition-all">
+          דווח עכשיו
+        </button>
+        <button class="md:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors" onclick="toggleMobileMenu()">
+          <svg id="menu-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          <svg id="close-icon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="mobile-menu" class="hidden md:hidden border-t border-slate-100 py-3 space-y-1">
+      <button onclick="navigate('landing');closeMobileMenu()" class="w-full text-right px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 block">בית</button>
+      <button onclick="navigate('report');closeMobileMenu()" class="w-full text-right px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 block">דיווח חדש</button>
+      <button onclick="navigate('initiatives');closeMobileMenu()" class="w-full text-right px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 block">יוזמות תלמידים</button>
+      <button onclick="navigate('my-reports');closeMobileMenu()" class="w-full text-right px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 block">הדיווחים שלי</button>
+      <div class="pt-2">
+        <button onclick="navigate('report');closeMobileMenu()" class="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl">דווח עכשיו</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== PAGES ===== -->
+
+<!-- LANDING PAGE -->
+<div data-page="landing" id="page-landing">
+  <div class="min-h-screen bg-white">
+    <!-- Hero -->
+    <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
+      <div class="absolute inset-0 opacity-10">
+        <div class="absolute top-20 right-20 w-72 h-72 bg-blue-500 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-10 left-20 w-96 h-96 bg-cyan-500 rounded-full blur-3xl"></div>
+      </div>
+      <div class="relative max-w-6xl mx-auto px-4 sm:px-6 py-24 text-center">
+        <div class="inline-flex items-center gap-2 bg-blue-500/20 border border-blue-400/30 text-blue-300 text-sm font-medium px-4 py-2 rounded-full mb-8">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          בטוח · אנונימי · אפקטיבי
+        </div>
+        <h1 class="text-4xl sm:text-6xl font-extrabold text-white leading-tight mb-6">
+          הקול שלך <span class="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">שינוי אמיתי</span>
+        </h1>
+        <p class="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
+          פלטפורמה דיגיטלית שמאפשרת לכל תלמיד להשפיע על בית הספר שלו — לדווח על עוולות בצורה מוגנת, וליזום שינויים חיוביים.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          <button onclick="navigate('report')" class="bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold px-8 py-4 rounded-2xl hover:shadow-xl hover:scale-105 transition-all text-lg">דווח על אירוע</button>
+          <button onclick="navigate('initiatives')" class="bg-white/10 border border-white/20 text-white font-semibold px-8 py-4 rounded-2xl hover:bg-white/20 transition-all text-lg">צפה ביוזמות תלמידים</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="py-20 bg-slate-50">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <div class="text-center mb-14">
+          <h2 class="text-3xl font-extrabold text-slate-900 mb-3">כיצד המערכת עובדת?</h2>
+          <p class="text-slate-500 text-lg max-w-xl mx-auto">שלושה שלבים פשוטים שהופכים שתיקה לשינוי</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div class="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <div class="absolute top-4 left-4 text-5xl font-extrabold text-slate-100">01</div>
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mb-5 shadow-md">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-slate-900 mb-3">ראית משהו?</h3>
+            <p class="text-slate-500 leading-relaxed">חרם, בריונות, ונדליזם — כל אירוע שמדאיג אותך. שלח דיווח בלחיצה אחת עם אפשרות לצרף תמונה או סרטון.</p>
+          </div>
+          <div class="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <div class="absolute top-4 left-4 text-5xl font-extrabold text-slate-100">02</div>
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center mb-5 shadow-md">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-slate-900 mb-3">בחר את רמת הגנתך</h3>
+            <p class="text-slate-500 leading-relaxed">אנונימי לחלוטין? מזוהה? הבחירה בידיך. המערכת מצפינה את זהותך ומאפשרת דיאלוג עם ההנהלה — ללא חשיפה.</p>
+          </div>
+          <div class="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden">
+            <div class="absolute top-4 left-4 text-5xl font-extrabold text-slate-100">03</div>
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center mb-5 shadow-md">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-slate-900 mb-3">צ'אט אנונימי דו-כיווני</h3>
+            <p class="text-slate-500 leading-relaxed">ההנהלה יכולה לשאול אותך שאלות הבהרה ואתה עונה — מבלי שידעו מי אתה. בעיות נפתרות בזמן אמת.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Categories -->
+    <section class="py-20 bg-white">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <div class="text-center mb-14">
+          <h2 class="text-3xl font-extrabold text-slate-900 mb-3">מערכת סיווג חכמה</h2>
+          <p class="text-slate-500 text-lg">כל דיווח מקבל עדיפות אוטומטית</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="rounded-2xl p-7 border-2 border-red-300 bg-red-50">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+              <span class="font-extrabold text-slate-900 text-lg">אדום — דחוף</span>
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700 mr-auto">עדיפות עליונה</span>
+            </div>
+            <ul class="space-y-2">
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>חרם ובידוד חברתי</li>
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>אלימות פיזית</li>
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"></span>פגיעה נפשית</li>
+            </ul>
+          </div>
+          <div class="rounded-2xl p-7 border-2 border-amber-300 bg-amber-50">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-3 h-3 rounded-full bg-amber-500 animate-pulse"></div>
+              <span class="font-extrabold text-slate-900 text-lg">צהוב — משמעת</span>
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 mr-auto">טיפול מהיר</span>
+            </div>
+            <ul class="space-y-2">
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>ונדליזם ונזק לרכוש</li>
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>לכלוך ואי-סדר</li>
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>גניבה</li>
+            </ul>
+          </div>
+          <div class="rounded-2xl p-7 border-2 border-emerald-300 bg-emerald-50">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span class="font-extrabold text-slate-900 text-lg">ירוק — אקלים</span>
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 mr-auto">שיפור מתמיד</span>
+            </div>
+            <ul class="space-y-2">
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>יחס מזלזל מצד מורה</li>
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>בעיות תחזוקה</li>
+              <li class="flex items-center gap-2 text-slate-700 text-sm"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0"></span>לכלוך בשירותים</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Initiatives promo -->
+    <section class="py-20 bg-gradient-to-br from-blue-50 to-cyan-50">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div>
+            <span class="inline-flex items-center gap-2 bg-blue-100 text-blue-700 text-sm font-semibold px-3 py-1 rounded-full mb-5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>
+              זירת היוזמות
+            </span>
+            <h2 class="text-3xl font-extrabold text-slate-900 mb-5">לא רק לדווח — ליזום</h2>
+            <p class="text-slate-600 leading-relaxed mb-6 text-lg">בית הספר הוא שלכם. הציעו שינויים פיזיים, חברתיים ואקדמיים. הצביעו על הרעיונות הכי טובים. ההנהלה רואה ומגיבה.</p>
+            <div class="space-y-4">
+              <div class="flex items-center gap-3 bg-white rounded-xl px-5 py-3 shadow-sm border border-slate-200"><span class="text-2xl">🎨</span><span class="text-slate-700 font-medium">צביעת קירות והשבחת מרחבים</span></div>
+              <div class="flex items-center gap-3 bg-white rounded-xl px-5 py-3 shadow-sm border border-slate-200"><span class="text-2xl">🌱</span><span class="text-slate-700 font-medium">הקמת פינת ישיבה מחומרים ממוחזרים</span></div>
+              <div class="flex items-center gap-3 bg-white rounded-xl px-5 py-3 shadow-sm border border-slate-200"><span class="text-2xl">📅</span><span class="text-slate-700 font-medium">שינוי לוח המבחנים וימי שיא</span></div>
+            </div>
+            <button onclick="navigate('initiatives')" class="mt-8 flex items-center gap-2 bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors">
+              לזירת היוזמות
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-center"><div class="text-3xl font-extrabold text-blue-600 mb-2">94%</div><div class="text-sm text-slate-500">תלמידים שדיווחו בפעם הראשונה</div></div>
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-center"><div class="text-3xl font-extrabold text-blue-600 mb-2">3 ימים</div><div class="text-sm text-slate-500">זמן טיפול ממוצע</div></div>
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-center"><div class="text-3xl font-extrabold text-blue-600 mb-2">200+</div><div class="text-sm text-slate-500">יוזמות שהוגשו ואושרו</div></div>
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-center"><div class="text-3xl font-extrabold text-blue-600 mb-2">0</div><div class="text-sm text-slate-500">מקרים של חשיפת זהות</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quote -->
+    <section class="py-16 bg-slate-900">
+      <div class="max-w-3xl mx-auto text-center px-4">
+        <div class="flex justify-center mb-6">
+          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <blockquote class="text-2xl font-light text-white italic mb-4">"אל תחכו לשינוי — תהיו השינוי"</blockquote>
+        <cite class="text-slate-400 text-sm">— מהאטמה גנדי</cite>
+        <div class="mt-10">
+          <button onclick="navigate('report')" class="bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold px-10 py-4 rounded-2xl hover:shadow-xl hover:scale-105 transition-all text-lg">התחל לשנות עכשיו</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- REPORT PAGE -->
+<div data-page="report" id="page-report">
+  <div id="report-category-step" class="min-h-screen bg-slate-50 py-12 px-4">
+    <div class="max-w-2xl mx-auto">
+      <div class="text-center mb-10">
+        <h1 class="text-3xl font-extrabold text-slate-900 mb-3">דיווח על אירוע</h1>
+        <p class="text-slate-500">בחר את סוג הדיווח כדי לעזור לנו לטפל בו בצורה הנכונה</p>
+      </div>
+      <div class="space-y-4">
+        <button onclick="selectCategory('urgent')" class="w-full bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-right flex items-start gap-5 hover:shadow-md transition-all group">
+          <div class="w-4 h-4 rounded-full bg-red-500 mt-1 flex-shrink-0 group-hover:scale-125 transition-transform"></div>
+          <div class="flex-1">
+            <div class="font-extrabold text-lg text-red-700 mb-1">דחוף - פגיעה בנפש</div>
+            <p class="text-slate-500 text-sm">חרם, בריונות, אלימות, פגיעה נפשית — טיפול מיידי</p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-1 flex-shrink-0 opacity-60"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+        <button onclick="selectCategory('discipline')" class="w-full bg-amber-50 border-2 border-amber-300 rounded-2xl p-6 text-right flex items-start gap-5 hover:shadow-md transition-all group">
+          <div class="w-4 h-4 rounded-full bg-amber-500 mt-1 flex-shrink-0 group-hover:scale-125 transition-transform"></div>
+          <div class="flex-1">
+            <div class="font-extrabold text-lg text-amber-700 mb-1">משמעת ורכוש</div>
+            <p class="text-slate-500 text-sm">ונדליזם, נזק לרכוש, גניבה, לכלוך — טיפול מהיר</p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-1 flex-shrink-0 opacity-60"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+        <button onclick="selectCategory('climate')" class="w-full bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-6 text-right flex items-start gap-5 hover:shadow-md transition-all group">
+          <div class="w-4 h-4 rounded-full bg-emerald-500 mt-1 flex-shrink-0 group-hover:scale-125 transition-transform"></div>
+          <div class="flex-1">
+            <div class="font-extrabold text-lg text-emerald-700 mb-1">אקלים בית ספרי</div>
+            <p class="text-slate-500 text-sm">יחס מזלזל, בעיות תחזוקה, הצעות לשיפור — שיפור מתמיד</p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-1 flex-shrink-0 opacity-60"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="report-form-step" class="hidden min-h-screen bg-slate-50 py-12 px-4">
+    <div class="max-w-2xl mx-auto">
+      <div class="flex items-center gap-3 mb-8">
+        <button onclick="showCategoryStep()" class="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-lg hover:bg-slate-100">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div>
+          <h1 class="text-2xl font-extrabold text-slate-900">פרטי הדיווח</h1>
+          <span id="report-category-label" class="text-sm font-semibold text-red-700"></span>
+        </div>
+      </div>
+
+      <div id="report-privacy-box" class="border-2 rounded-2xl p-5 mb-6">
+        <p class="font-semibold text-slate-800 mb-1">בחר את רמת הגנתך</p>
+        <p class="text-slate-500 text-sm mb-4">הזהות שלך בטוחה בכל מקרה. ניתן לשנות את הבחירה בכל עת.</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button id="anon-btn" onclick="setAnonymous(true)" class="flex items-center gap-2 p-3 rounded-xl border-2 border-blue-400 bg-blue-50 transition-all text-right">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <div><div class="font-semibold text-sm text-slate-800">אנונימי</div><div class="text-xs text-slate-400">זהותי מוצפנת</div></div>
+          </button>
+          <button id="named-btn" onclick="setAnonymous(false)" class="flex items-center gap-2 p-3 rounded-xl border-2 border-slate-200 bg-white transition-all text-right">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <div><div class="font-semibold text-sm text-slate-800">מזוהה</div><div class="text-xs text-slate-400">קרדיט וליווי אישי</div></div>
+          </button>
+        </div>
+      </div>
+
+      <form id="report-form" onsubmit="submitReport(event)" class="space-y-5">
+        <div id="name-field" class="hidden">
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">שמך המלא</label>
+          <input type="text" id="reporter-name" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="שם פרטי ושם משפחה" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">כותרת הדיווח *</label>
+          <input type="text" id="report-title" required maxlength="100" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="תאר בקצרה מה קרה..." />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">תיאור מפורט *</label>
+          <textarea id="report-description" required rows="5" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" placeholder="תאר את האירוע בפירוט — מי, מה, מתי, כמה פעמים..."></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            מיקום האירוע
+          </label>
+          <input type="text" id="report-location" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="כיתה, חצר, שירותים, מסדרון..." />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            קישור לתמונה / סרטון (אופציונלי)
+          </label>
+          <input type="url" id="report-media" dir="ltr" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="https://..." />
+          <p class="text-xs text-slate-400 mt-1">ניתן להעלות תמונה ל-Google Photos, Dropbox או כל שירות שיתוף ולהדביק את הקישור</p>
+        </div>
+        <div id="report-error" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm"></div>
+        <button type="submit" id="report-submit-btn" class="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-4 rounded-xl hover:shadow-lg hover:scale-[1.02] transition-all text-lg">
+          שלח דיווח אנונימי
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div id="report-success-step" class="hidden min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-xl p-10 max-w-md w-full text-center">
+      <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <h2 class="text-2xl font-extrabold text-slate-900 mb-3">הדיווח נשלח בהצלחה!</h2>
+      <p id="success-msg" class="text-slate-500 mb-2">דיווחך נשלח באופן אנונימי. ניתן לעקוב אחרי התגובות בדף "הדיווחים שלי".</p>
+      <div class="bg-slate-50 rounded-xl p-4 my-6 text-left" dir="ltr">
+        <p class="text-xs text-slate-400 mb-1">מזהה דיווח</p>
+        <p id="success-report-id" class="font-mono text-xs text-slate-600 break-all"></p>
+      </div>
+      <div class="flex flex-col gap-3">
+        <button onclick="navigate('my-reports')" class="bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 transition-colors">עקוב אחרי הדיווח שלי</button>
+        <button onclick="resetReport()" class="text-slate-500 font-medium py-3 rounded-xl hover:bg-slate-50 transition-colors border border-slate-200">שלח דיווח נוסף</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MY REPORTS PAGE -->
+<div data-page="my-reports" id="page-my-reports">
+  <div class="min-h-screen bg-slate-50 py-10 px-4">
+    <div class="max-w-3xl mx-auto">
+      <div class="mb-8">
+        <h1 class="text-3xl font-extrabold text-slate-900 mb-2">הדיווחים שלי</h1>
+        <p id="my-reports-subtitle" class="text-slate-500"></p>
+      </div>
+      <div id="my-reports-loading" class="text-center py-16">
+        <div class="spinner mx-auto mb-3"></div>
+        <p class="text-slate-400">טוען את הדיווחים שלך...</p>
+      </div>
+      <div id="my-reports-empty" class="hidden bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <h3 class="text-xl font-bold text-slate-700 mb-2">אין דיווחים עדיין</h3>
+        <p class="text-slate-400">דיווחים שתשלח מהמכשיר הזה יופיעו כאן.</p>
+      </div>
+      <div id="my-reports-list" class="space-y-4"></div>
+    </div>
+  </div>
+</div>
+
+<!-- INITIATIVES PAGE -->
+<div data-page="initiatives" id="page-initiatives">
+  <div class="min-h-screen bg-slate-50 py-10 px-4">
+    <div class="max-w-4xl mx-auto">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 class="text-3xl font-extrabold text-slate-900 mb-1">יוזמות תלמידים</h1>
+          <p class="text-slate-500">הצביעו על הרעיונות שהכי חשובים לכם</p>
+        </div>
+        <button onclick="openInitiativeForm()" class="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-5 py-3 rounded-xl hover:shadow-md hover:scale-105 transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          הצע יוזמה
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2 mb-6 flex-wrap">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        <button onclick="setInitiativeFilter('all')" id="filter-all" class="px-4 py-1.5 rounded-full text-sm font-medium bg-blue-600 text-white shadow-sm transition-all">הכל</button>
+        <button onclick="setInitiativeFilter('physical')" id="filter-physical" class="px-4 py-1.5 rounded-full text-sm font-medium bg-white text-slate-600 border border-slate-200 hover:border-blue-300 transition-all">שיפור פיזי</button>
+        <button onclick="setInitiativeFilter('social')" id="filter-social" class="px-4 py-1.5 rounded-full text-sm font-medium bg-white text-slate-600 border border-slate-200 hover:border-blue-300 transition-all">יוזמה חברתית</button>
+        <button onclick="setInitiativeFilter('academic')" id="filter-academic" class="px-4 py-1.5 rounded-full text-sm font-medium bg-white text-slate-600 border border-slate-200 hover:border-blue-300 transition-all">שינוי אקדמי</button>
+      </div>
+
+      <div id="initiatives-loading" class="text-center py-16">
+        <div class="spinner mx-auto mb-3"></div>
+        <p class="text-slate-400">טוען יוזמות...</p>
+      </div>
+      <div id="initiatives-empty" class="hidden bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>
+        <h3 class="text-xl font-bold text-slate-700 mb-2">אין יוזמות עדיין</h3>
+        <p class="text-slate-400 mb-6">היה הראשון להציע רעיון לשיפור בית הספר!</p>
+        <button onclick="openInitiativeForm()" class="bg-blue-600 text-white font-semibold px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors">הצע יוזמה ראשונה</button>
+      </div>
+      <div id="initiatives-grid" class="grid grid-cols-1 md:grid-cols-2 gap-5"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Initiative Modal -->
+<div id="initiative-modal" class="modal-overlay">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" dir="rtl">
+    <div class="flex items-center justify-between p-6 border-b border-slate-100">
+      <h2 class="text-xl font-extrabold text-slate-900">הצע יוזמה חדשה</h2>
+      <button onclick="closeInitiativeForm()" class="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="initiative-form-body">
+      <form id="initiative-form" onsubmit="submitInitiative(event)" class="p-6 space-y-5">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">קטגוריה</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" onclick="setInitiativeCategory('physical')" id="icat-physical" class="py-2 px-3 rounded-xl text-xs font-semibold border-2 border-blue-400 bg-sky-100 text-sky-700 transition-all">שיפור פיזי</button>
+            <button type="button" onclick="setInitiativeCategory('social')" id="icat-social" class="py-2 px-3 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 hover:border-blue-200 transition-all">יוזמה חברתית</button>
+            <button type="button" onclick="setInitiativeCategory('academic')" id="icat-academic" class="py-2 px-3 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 hover:border-blue-200 transition-all">שינוי אקדמי</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">כותרת הרעיון *</label>
+          <input type="text" id="initiative-title" required class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="תאר בקצרה את הרעיון שלך..." />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">תיאור מפורט *</label>
+          <textarea id="initiative-description" required rows="4" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" placeholder="הסבר את הרעיון שלך — למה זה חשוב? איך זה יעזור לבית הספר?"></textarea>
+        </div>
+        <div class="flex items-center gap-3">
+          <button type="button" id="anon-toggle" onclick="toggleInitiativeAnon()" class="relative w-11 h-6 rounded-full transition-colors bg-slate-300 flex-shrink-0">
+            <span class="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow toggle-thumb translate-x-5"></span>
+          </button>
+          <label class="text-sm text-slate-700 cursor-pointer" onclick="toggleInitiativeAnon()">הגש באופן אנונימי</label>
+        </div>
+        <div id="initiative-name-field">
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">שמך</label>
+          <input type="text" id="initiative-submitter-name" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="שם פרטי ושם משפחה" />
+        </div>
+        <button type="submit" id="initiative-submit-btn" class="w-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-4 rounded-xl hover:shadow-lg transition-all">הגש יוזמה</button>
+      </form>
+    </div>
+    <div id="initiative-success" class="hidden p-10 text-center">
+      <div class="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>
+      </div>
+      <h3 class="text-xl font-bold text-slate-900 mb-2">היוזמה הוגשה!</h3>
+      <p class="text-slate-500">תודה! ההנהלה תבחן את הרעיון שלך.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN PAGE -->
+<div data-page="admin" id="page-admin">
+  <!-- Admin Login -->
+  <div id="admin-login" class="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full">
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h1 id="admin-login-title" class="text-2xl font-extrabold text-slate-900 mb-1">כניסת הנהלה</h1>
+        <p class="text-slate-500 text-sm">אזור מוגן — לצוות בית הספר בלבד</p>
+      </div>
+      <form id="admin-login-form" onsubmit="adminLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">כתובת מייל</label>
+          <input type="email" id="admin-email" required dir="ltr" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400" placeholder="admin@school.il" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1.5">סיסמה</label>
+          <input type="password" id="admin-password" required dir="ltr" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400" placeholder="••••••••" />
+        </div>
+        <div id="admin-auth-error" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3"></div>
+        <button type="submit" id="admin-login-btn" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold py-3.5 rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          כניסה
+        </button>
+        <button type="button" onclick="toggleAdminRegister()" class="w-full text-center text-sm text-slate-400 hover:text-slate-600 transition-colors mt-1">
+          הגדרה ראשונית? צור חשבון הנהלה
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin Dashboard -->
+  <div id="admin-dashboard" class="hidden min-h-screen bg-slate-50">
+    <div class="bg-white border-b border-slate-200 px-4 sm:px-6 py-4">
+      <div class="max-w-6xl mx-auto flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div>
+            <h1 class="font-extrabold text-slate-900">לוח בקרה — הנהלה</h1>
+            <p class="text-xs text-slate-400">הקול בכיתה</p>
+          </div>
+        </div>
+        <button onclick="adminLogout()" class="text-sm text-slate-500 hover:text-slate-700 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100">התנתק</button>
+      </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="admin-stats"></div>
+
+      <div class="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+        <button onclick="setAdminTab('reports')" id="tab-reports" class="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-white text-slate-900 shadow-sm transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          דיווחים
+        </button>
+        <button onclick="setAdminTab('initiatives')" id="tab-initiatives" class="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-700 transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>
+          יוזמות
+        </button>
+      </div>
+
+      <div id="admin-loading" class="text-center py-16">
+        <div class="spinner spinner-amber mx-auto mb-3"></div>
+        <p class="text-slate-400">טוען נתונים...</p>
+      </div>
+      <div id="admin-reports-list" class="hidden space-y-4"></div>
+      <div id="admin-initiatives-list" class="hidden space-y-4"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== SUPABASE =====
+const SUPABASE_URL = 'https://lemuxaanbnmlxbptpzhp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxlbXV4YWFuYm5tbHhicHRwemhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMjM5MTAsImV4cCI6MjA5MTg5OTkxMH0.h4ZLk40HxtEz-GU90WRnJ5tKF22JNGqaLpBgjcDxfZc';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ===== UTILS =====
+function getOrCreateAnonymousToken() {
+  const key = 'kol_bakita_anon_token';
+  let token = localStorage.getItem(key);
+  if (!token) { token = crypto.randomUUID(); localStorage.setItem(key, token); }
+  return token;
+}
+function getVoterToken() {
+  const key = 'kol_bakita_voter_token';
+  let token = localStorage.getItem(key);
+  if (!token) { token = crypto.randomUUID(); localStorage.setItem(key, token); }
+  return token;
+}
+function formatDate(dateStr) {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+}
+const categoryLabels = { urgent: 'דחוף - פגיעה בנפש', discipline: 'משמעת ורכוש', climate: 'אקלים בית ספרי' };
+const catBadge = { urgent: 'bg-red-100 text-red-700', discipline: 'bg-amber-100 text-amber-700', climate: 'bg-emerald-100 text-emerald-700' };
+const catBorder = { urgent: 'border-red-300', discipline: 'border-amber-300', climate: 'border-emerald-300' };
+const catBg = { urgent: 'bg-red-50', discipline: 'bg-amber-50', climate: 'bg-emerald-50' };
+const catText = { urgent: 'text-red-700', discipline: 'text-amber-700', climate: 'text-emerald-700' };
+const statusLabels = { open: 'פתוח', in_progress: 'בטיפול', resolved: 'נסגר', pending: 'ממתין', approved: 'אושר', done: 'הושלם', rejected: 'נדחה' };
+const statusColors = { open: 'bg-blue-100 text-blue-700', in_progress: 'bg-amber-100 text-amber-700', resolved: 'bg-emerald-100 text-emerald-700', pending: 'bg-gray-100 text-gray-600', approved: 'bg-blue-100 text-blue-700', done: 'bg-emerald-100 text-emerald-700', rejected: 'bg-red-100 text-red-700' };
+const initCatLabels = { physical: 'שיפור פיזי', social: 'יוזמה חברתית', academic: 'שינוי אקדמי' };
+const initCatColors = { physical: 'bg-sky-100 text-sky-700', social: 'bg-rose-100 text-rose-700', academic: 'bg-violet-100 text-violet-700' };
+
+// ===== NAVIGATION =====
+let currentPage = 'landing';
+let isAdmin = false;
+
+function navigate(page) {
+  document.querySelectorAll('[data-page]').forEach(el => el.classList.remove('active'));
+  const target = document.getElementById('page-' + page);
+  if (target) target.classList.add('active');
+  currentPage = page;
+
+  const header = document.getElementById('main-header');
+  header.style.display = page === 'admin' ? 'none' : '';
+
+  updateNavHighlight();
+  closeMobileMenu();
+
+  if (page === 'my-reports') loadMyReports();
+  if (page === 'initiatives') loadInitiatives();
+  if (page === 'admin') checkAdminAuth();
+  if (page === 'report') resetReport();
+  window.scrollTo(0, 0);
+}
+
+function updateNavHighlight() {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    const nav = btn.getAttribute('data-nav');
+    btn.className = btn.className.replace(/bg-blue-50 text-blue-700|bg-amber-50 text-amber-700/g, '').trim();
+    if (nav === currentPage) {
+      if (nav === 'admin') btn.classList.add('bg-amber-50', 'text-amber-700');
+      else btn.classList.add('bg-blue-50', 'text-blue-700');
+    }
+  });
+}
+
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobile-menu');
+  const menuIcon = document.getElementById('menu-icon');
+  const closeIcon = document.getElementById('close-icon');
+  menu.classList.toggle('hidden');
+  menuIcon.classList.toggle('hidden');
+  closeIcon.classList.toggle('hidden');
+}
+function closeMobileMenu() {
+  document.getElementById('mobile-menu').classList.add('hidden');
+  document.getElementById('menu-icon').classList.remove('hidden');
+  document.getElementById('close-icon').classList.add('hidden');
+}
+
+// ===== REPORT PAGE =====
+let reportCategory = null;
+let reportIsAnonymous = true;
+
+function selectCategory(cat) {
+  reportCategory = cat;
+  document.getElementById('report-category-step').classList.add('hidden');
+  document.getElementById('report-form-step').classList.remove('hidden');
+  document.getElementById('report-success-step').classList.add('hidden');
+
+  const label = document.getElementById('report-category-label');
+  label.textContent = categoryLabels[cat];
+  label.className = 'text-sm font-semibold ' + catText[cat];
+
+  const box = document.getElementById('report-privacy-box');
+  box.className = `${catBg[cat]} border-2 ${catBorder[cat]} rounded-2xl p-5 mb-6`;
+}
+
+function showCategoryStep() {
+  document.getElementById('report-category-step').classList.remove('hidden');
+  document.getElementById('report-form-step').classList.add('hidden');
+  document.getElementById('report-success-step').classList.add('hidden');
+}
+
+function setAnonymous(val) {
+  reportIsAnonymous = val;
+  const anonBtn = document.getElementById('anon-btn');
+  const namedBtn = document.getElementById('named-btn');
+  const nameField = document.getElementById('name-field');
+  const submitBtn = document.getElementById('report-submit-btn');
+
+  if (val) {
+    anonBtn.className = 'flex items-center gap-2 p-3 rounded-xl border-2 border-blue-400 bg-blue-50 transition-all text-right';
+    namedBtn.className = 'flex items-center gap-2 p-3 rounded-xl border-2 border-slate-200 bg-white transition-all text-right';
+    nameField.classList.add('hidden');
+    submitBtn.textContent = 'שלח דיווח אנונימי';
+  } else {
+    anonBtn.className = 'flex items-center gap-2 p-3 rounded-xl border-2 border-slate-200 bg-white transition-all text-right';
+    namedBtn.className = 'flex items-center gap-2 p-3 rounded-xl border-2 border-blue-400 bg-blue-50 transition-all text-right';
+    nameField.classList.remove('hidden');
+    submitBtn.textContent = 'שלח דיווח מזוהה';
+  }
+}
+
+async function submitReport(e) {
+  e.preventDefault();
+  const title = document.getElementById('report-title').value.trim();
+  const description = document.getElementById('report-description').value.trim();
+  if (!reportCategory || !title || !description) return;
+
+  const btn = document.getElementById('report-submit-btn');
+  btn.textContent = 'שולח...';
+  btn.disabled = true;
+
+  const anonToken = getOrCreateAnonymousToken();
+  const { data, error } = await sb.from('reports').insert({
+    category: reportCategory,
+    title,
+    description,
+    location: document.getElementById('report-location').value.trim(),
+    media_url: document.getElementById('report-media').value.trim(),
+    is_anonymous: reportIsAnonymous,
+    reporter_name: reportIsAnonymous ? null : (document.getElementById('reporter-name').value.trim() || null),
+    anonymous_token: anonToken,
+  }).select().maybeSingle();
+
+  btn.disabled = false;
+  btn.textContent = reportIsAnonymous ? 'שלח דיווח אנונימי' : 'שלח דיווח מזוהה';
+
+  if (error) {
+    const errEl = document.getElementById('report-error');
+    errEl.textContent = 'אירעה שגיאה בשליחת הדיווח. אנא נסה שנית.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  document.getElementById('report-form-step').classList.add('hidden');
+  document.getElementById('report-success-step').classList.remove('hidden');
+  document.getElementById('success-report-id').textContent = data.id;
+  document.getElementById('success-msg').textContent = reportIsAnonymous
+    ? 'דיווחך נשלח באופן אנונימי. ניתן לעקוב אחרי התגובות בדף "הדיווחים שלי".'
+    : 'דיווחך נשלח בהצלחה. ניתן לעקוב אחרי הטיפול בדף "הדיווחים שלי".';
+}
+
+function resetReport() {
+  reportCategory = null;
+  reportIsAnonymous = true;
+  document.getElementById('report-category-step').classList.remove('hidden');
+  document.getElementById('report-form-step').classList.add('hidden');
+  document.getElementById('report-success-step').classList.add('hidden');
+  document.getElementById('report-form').reset();
+  document.getElementById('report-error').classList.add('hidden');
+  setAnonymous(true);
+}
+
+// ===== MY REPORTS =====
+let myReports = [];
+
+async function loadMyReports() {
+  document.getElementById('my-reports-loading').classList.remove('hidden');
+  document.getElementById('my-reports-empty').classList.add('hidden');
+  document.getElementById('my-reports-list').innerHTML = '';
+
+  const anonToken = getOrCreateAnonymousToken();
+  const { data } = await sb.from('reports').select('*').eq('anonymous_token', anonToken).order('created_at', { ascending: false });
+
+  if (!data || data.length === 0) {
+    document.getElementById('my-reports-loading').classList.add('hidden');
+    document.getElementById('my-reports-empty').classList.remove('hidden');
+    document.getElementById('my-reports-subtitle').textContent = 'לא נמצאו דיווחים קשורים למכשיר זה';
+    return;
+  }
+
+  const withMsgs = await Promise.all(data.map(async r => {
+    const { data: msgs } = await sb.from('report_messages').select('*').eq('report_id', r.id).order('created_at', { ascending: true });
+    return { ...r, messages: msgs || [], expanded: false };
+  }));
+
+  myReports = withMsgs;
+  document.getElementById('my-reports-subtitle').textContent = `נמצאו ${withMsgs.length} דיווח${withMsgs.length > 1 ? 'ים' : ''} המקושרים למכשיר זה`;
+  document.getElementById('my-reports-loading').classList.add('hidden');
+  renderMyReports();
+}
+
+function renderMyReports() {
+  const list = document.getElementById('my-reports-list');
+  list.innerHTML = '';
+  myReports.forEach(report => {
+    const hasAdmin = report.messages.some(m => m.sender_role === 'admin');
+    const div = document.createElement('div');
+    div.className = `bg-white rounded-2xl border-2 ${catBorder[report.category]} shadow-sm overflow-hidden`;
+    div.innerHTML = `
+      <div class="${catBg[report.category]} px-6 py-4 cursor-pointer" onclick="toggleMyReport('${report.id}')">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${catBadge[report.category]}">${categoryLabels[report.category]}</span>
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${statusColors[report.status]}">${statusLabels[report.status]}</span>
+              ${hasAdmin ? `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">תגובה מההנהלה</span>` : ''}
+            </div>
+            <h3 class="font-bold text-slate-900 text-lg truncate">${escHtml(report.title)}</h3>
+            <div class="text-slate-400 text-xs mt-1">${formatDate(report.created_at)}${report.location ? ' · ' + escHtml(report.location) : ''}</div>
+          </div>
+          <div class="flex-shrink-0 text-slate-400" id="chevron-mr-${report.id}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+      </div>
+      <div id="mr-body-${report.id}" class="hidden px-6 py-5">
+        <div class="bg-slate-50 rounded-xl p-4 mb-5">
+          <p class="text-sm font-semibold text-slate-500 mb-1">תיאור הדיווח</p>
+          <p class="text-slate-700 whitespace-pre-wrap">${escHtml(report.description)}</p>
+        </div>
+        <div class="mb-5">
+          <h4 class="font-bold text-slate-800 mb-3">צ'אט עם ההנהלה <span class="text-xs text-slate-400 font-normal">(זהותך נשמרת אנונימית)</span></h4>
+          <div id="chat-mr-${report.id}" class="space-y-3 mb-4 max-h-64 overflow-y-auto">
+            ${report.messages.length === 0
+              ? `<div class="bg-slate-50 rounded-xl p-6 text-center text-slate-400 text-sm">אין הודעות עדיין. ההנהלה עשויה לשלוח שאלות הבהרה כאן.</div>`
+              : report.messages.map(msg => `
+                <div class="flex ${msg.sender_role === 'reporter' ? 'justify-start' : 'justify-end'}">
+                  <div class="max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${msg.sender_role === 'reporter' ? 'bg-slate-100 text-slate-800 rounded-tr-sm' : 'bg-blue-600 text-white rounded-tl-sm'}">
+                    <p class="leading-relaxed">${escHtml(msg.content)}</p>
+                    <p class="text-xs mt-1 ${msg.sender_role === 'reporter' ? 'text-slate-400' : 'text-blue-200'}">${msg.sender_role === 'reporter' ? 'אתה' : 'ההנהלה'} · ${formatDate(msg.created_at)}</p>
+                  </div>
+                </div>`).join('')}
+          </div>
+          ${report.status !== 'resolved' ? `
+          <div class="flex gap-2">
+            <input type="text" id="reply-mr-${report.id}" placeholder="כתוב תגובה להנהלה..." class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMyReply('${report.id}')}" />
+            <button onclick="sendMyReply('${report.id}')" class="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>` : ''}
+        </div>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function toggleMyReport(id) {
+  const body = document.getElementById('mr-body-' + id);
+  const chevron = document.getElementById('chevron-mr-' + id);
+  const isOpen = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', isOpen);
+  chevron.innerHTML = isOpen
+    ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`;
+}
+
+async function sendMyReply(reportId) {
+  const input = document.getElementById('reply-mr-' + reportId);
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  await sb.from('report_messages').insert({ report_id: reportId, sender_role: 'reporter', content: text });
+  await loadMyReports();
+}
+
+// ===== INITIATIVES =====
+let allInitiatives = [];
+let initiativeFilter = 'all';
+let initiativeCategory = 'physical';
+let initiativeIsAnon = false;
+let votedIds = new Set();
+
+async function loadInitiatives() {
+  document.getElementById('initiatives-loading').classList.remove('hidden');
+  document.getElementById('initiatives-empty').classList.add('hidden');
+  document.getElementById('initiatives-grid').innerHTML = '';
+
+  const { data } = await sb.from('initiatives').select('*').order('created_at', { ascending: false });
+  if (!data) { document.getElementById('initiatives-loading').classList.add('hidden'); return; }
+
+  const voterToken = getVoterToken();
+  const withVotes = await Promise.all(data.map(async init => {
+    const { count } = await sb.from('initiative_votes').select('*', { count: 'exact', head: true }).eq('initiative_id', init.id);
+    const { data: myVote } = await sb.from('initiative_votes').select('id').eq('initiative_id', init.id).eq('voter_token', voterToken).maybeSingle();
+    return { ...init, vote_count: count || 0, user_voted: !!myVote };
+  }));
+
+  allInitiatives = withVotes;
+  votedIds = new Set(withVotes.filter(i => i.user_voted).map(i => i.id));
+  document.getElementById('initiatives-loading').classList.add('hidden');
+  renderInitiatives();
+}
+
+function renderInitiatives() {
+  const filtered = initiativeFilter === 'all' ? allInitiatives : allInitiatives.filter(i => i.category === initiativeFilter);
+  const sorted = [...filtered].sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+  const grid = document.getElementById('initiatives-grid');
+  grid.innerHTML = '';
+
+  if (sorted.length === 0) {
+    document.getElementById('initiatives-empty').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('initiatives-empty').classList.add('hidden');
+
+  sorted.forEach(init => {
+    const voted = votedIds.has(init.id);
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col';
+    card.innerHTML = `
+      <div class="p-6 flex-1">
+        <div class="flex flex-wrap gap-2 mb-3">
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${initCatColors[init.category]}">${initCatLabels[init.category]}</span>
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${statusColors[init.status]}">${statusLabels[init.status]}</span>
+        </div>
+        <h3 class="font-bold text-slate-900 text-lg mb-2 leading-tight">${escHtml(init.title)}</h3>
+        <p class="text-slate-500 text-sm leading-relaxed line-clamp-3">${escHtml(init.description)}</p>
+        ${init.admin_response ? `<div class="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-3"><p class="text-xs font-semibold text-blue-600 mb-1">תגובת ההנהלה</p><p class="text-sm text-blue-800">${escHtml(init.admin_response)}</p></div>` : ''}
+      </div>
+      <div class="border-t border-slate-100 px-6 py-3 flex items-center justify-between bg-slate-50/50">
+        <div class="text-xs text-slate-400">${init.is_anonymous ? 'תלמיד אנונימי' : escHtml(init.submitter_name)} · ${formatDate(init.created_at)}</div>
+        <button onclick="voteInitiative('${init.id}')" ${voted ? 'disabled' : ''} class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${voted ? 'bg-blue-100 text-blue-600 cursor-default' : 'bg-white border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50'}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+          ${init.vote_count || 0}${voted ? ' · תמכת' : ''}
+        </button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+async function voteInitiative(id) {
+  if (votedIds.has(id)) return;
+  const voterToken = getVoterToken();
+  await sb.from('initiative_votes').insert({ initiative_id: id, voter_token: voterToken });
+  votedIds.add(id);
+  allInitiatives = allInitiatives.map(i => i.id === id ? { ...i, vote_count: (i.vote_count || 0) + 1, user_voted: true } : i);
+  renderInitiatives();
+}
+
+function setInitiativeFilter(f) {
+  initiativeFilter = f;
+  ['all', 'physical', 'social', 'academic'].forEach(k => {
+    const btn = document.getElementById('filter-' + k);
+    btn.className = k === f
+      ? 'px-4 py-1.5 rounded-full text-sm font-medium bg-blue-600 text-white shadow-sm transition-all'
+      : 'px-4 py-1.5 rounded-full text-sm font-medium bg-white text-slate-600 border border-slate-200 hover:border-blue-300 transition-all';
+  });
+  renderInitiatives();
+}
+
+function openInitiativeForm() {
+  document.getElementById('initiative-modal').classList.add('active');
+  document.getElementById('initiative-form-body').classList.remove('hidden');
+  document.getElementById('initiative-success').classList.add('hidden');
+  document.getElementById('initiative-form').reset();
+  setInitiativeCategory('physical');
+  initiativeIsAnon = false;
+  updateAnonToggle();
+}
+function closeInitiativeForm() {
+  document.getElementById('initiative-modal').classList.remove('active');
+}
+
+function setInitiativeCategory(cat) {
+  initiativeCategory = cat;
+  ['physical', 'social', 'academic'].forEach(c => {
+    const btn = document.getElementById('icat-' + c);
+    if (c === cat) {
+      btn.className = `py-2 px-3 rounded-xl text-xs font-semibold border-2 border-blue-400 ${initCatColors[c]} transition-all`;
+    } else {
+      btn.className = 'py-2 px-3 rounded-xl text-xs font-semibold border-2 border-slate-200 text-slate-500 hover:border-blue-200 transition-all';
+    }
+  });
+}
+
+function toggleInitiativeAnon() {
+  initiativeIsAnon = !initiativeIsAnon;
+  updateAnonToggle();
+}
+function updateAnonToggle() {
+  const toggle = document.getElementById('anon-toggle');
+  const nameField = document.getElementById('initiative-name-field');
+  const thumb = toggle.querySelector('.toggle-thumb');
+  if (initiativeIsAnon) {
+    toggle.className = 'relative w-11 h-6 rounded-full transition-colors bg-blue-600 flex-shrink-0';
+    thumb.style.transform = 'translateX(2px)';
+    nameField.classList.add('hidden');
+  } else {
+    toggle.className = 'relative w-11 h-6 rounded-full transition-colors bg-slate-300 flex-shrink-0';
+    thumb.style.transform = 'translateX(20px)';
+    nameField.classList.remove('hidden');
+  }
+}
+
+async function submitInitiative(e) {
+  e.preventDefault();
+  const title = document.getElementById('initiative-title').value.trim();
+  const description = document.getElementById('initiative-description').value.trim();
+  if (!title || !description) return;
+
+  const btn = document.getElementById('initiative-submit-btn');
+  btn.textContent = 'שולח...';
+  btn.disabled = true;
+
+  const anonToken = getOrCreateAnonymousToken();
+  await sb.from('initiatives').insert({
+    category: initiativeCategory,
+    title,
+    description,
+    submitter_name: initiativeIsAnon ? 'תלמיד אנונימי' : (document.getElementById('initiative-submitter-name').value.trim() || 'תלמיד'),
+    is_anonymous: initiativeIsAnon,
+    anonymous_token: anonToken,
+  });
+
+  btn.textContent = 'הגש יוזמה';
+  btn.disabled = false;
+  document.getElementById('initiative-form-body').classList.add('hidden');
+  document.getElementById('initiative-success').classList.remove('hidden');
+
+  loadInitiatives();
+  setTimeout(() => closeInitiativeForm(), 2500);
+}
+
+// ===== ADMIN =====
+let adminIsRegister = false;
+let adminReports = [];
+let adminInitiatives = [];
+let adminTab = 'reports';
+let adminReplyText = {};
+let adminResponse = {};
+
+async function checkAdminAuth() {
+  const { data } = await sb.auth.getSession();
+  if (data.session?.user?.email) {
+    showAdminDashboard();
+  } else {
+    showAdminLogin();
+  }
+}
+
+function showAdminLogin() {
+  document.getElementById('admin-login').classList.remove('hidden');
+  document.getElementById('admin-dashboard').classList.add('hidden');
+}
+function showAdminDashboard() {
+  document.getElementById('admin-login').classList.add('hidden');
+  document.getElementById('admin-dashboard').classList.remove('hidden');
+  loadAdminData();
+}
+
+function toggleAdminRegister() {
+  adminIsRegister = !adminIsRegister;
+  const title = document.getElementById('admin-login-title');
+  const btn = document.getElementById('admin-login-btn');
+  const toggle = document.querySelector('#admin-login-form button[type=button]');
+  if (adminIsRegister) {
+    title.textContent = 'הגדרת חשבון הנהלה';
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> צור חשבון הנהלה`;
+    toggle.textContent = 'כבר יש חשבון? כנס כאן';
+  } else {
+    title.textContent = 'כניסת הנהלה';
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> כניסה`;
+    toggle.textContent = 'הגדרה ראשונית? צור חשבון הנהלה';
+  }
+}
+
+async function adminLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('admin-email').value;
+  const password = document.getElementById('admin-password').value;
+  const errEl = document.getElementById('admin-auth-error');
+  errEl.classList.add('hidden');
+  const btn = document.getElementById('admin-login-btn');
+  btn.disabled = true;
+
+  if (adminIsRegister) {
+    const { error } = await sb.auth.signUp({ email, password });
+    if (error) { errEl.textContent = 'שגיאה ביצירת חשבון: ' + error.message; errEl.classList.remove('hidden'); btn.disabled = false; return; }
+    const { error: loginErr } = await sb.auth.signInWithPassword({ email, password });
+    if (loginErr) { errEl.textContent = 'החשבון נוצר. אנא התחבר.'; errEl.classList.remove('hidden'); adminIsRegister = false; toggleAdminRegister(); btn.disabled = false; return; }
+  } else {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) { errEl.textContent = 'פרטי הכניסה שגויים. נסה שנית.'; errEl.classList.remove('hidden'); btn.disabled = false; return; }
+  }
+
+  btn.disabled = false;
+  isAdmin = true;
+  updateAdminNavVisibility();
+  showAdminDashboard();
+}
+
+async function adminLogout() {
+  await sb.auth.signOut();
+  isAdmin = false;
+  updateAdminNavVisibility();
+  navigate('landing');
+}
+
+function updateAdminNavVisibility() {
+  const adminNavBtn = document.getElementById('admin-nav-btn');
+  const adminLinkBtn = document.getElementById('admin-link-btn');
+  if (isAdmin) {
+    adminNavBtn.classList.remove('hidden');
+    adminNavBtn.classList.add('flex');
+    adminLinkBtn.classList.add('hidden');
+  } else {
+    adminNavBtn.classList.add('hidden');
+    adminNavBtn.classList.remove('flex');
+    adminLinkBtn.classList.remove('hidden');
+  }
+}
+
+async function loadAdminData() {
+  document.getElementById('admin-loading').classList.remove('hidden');
+  document.getElementById('admin-reports-list').classList.add('hidden');
+  document.getElementById('admin-initiatives-list').classList.add('hidden');
+
+  const [{ data: reportData }, { data: initData }] = await Promise.all([
+    sb.from('reports').select('*').order('created_at', { ascending: false }),
+    sb.from('initiatives').select('*').order('created_at', { ascending: false }),
+  ]);
+
+  if (reportData) {
+    const withMsgs = await Promise.all(reportData.map(async r => {
+      const { data: msgs } = await sb.from('report_messages').select('*').eq('report_id', r.id).order('created_at', { ascending: true });
+      return { ...r, messages: msgs || [], expanded: false };
+    }));
+    const prio = { urgent: 0, discipline: 1, climate: 2 };
+    const stat = { open: 0, in_progress: 1, resolved: 2 };
+    withMsgs.sort((a, b) => stat[a.status] !== stat[b.status] ? stat[a.status] - stat[b.status] : prio[a.category] - prio[b.category]);
+    adminReports = withMsgs;
+  }
+
+  if (initData) {
+    const withVotes = await Promise.all(initData.map(async init => {
+      const { count } = await sb.from('initiative_votes').select('*', { count: 'exact', head: true }).eq('initiative_id', init.id);
+      return { ...init, vote_count: count || 0 };
+    }));
+    withVotes.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
+    adminInitiatives = withVotes;
+  }
+
+  renderAdminStats();
+  document.getElementById('admin-loading').classList.add('hidden');
+  setAdminTab(adminTab);
+}
+
+function renderAdminStats() {
+  const urgent = adminReports.filter(r => r.category === 'urgent' && r.status !== 'resolved').length;
+  const discipline = adminReports.filter(r => r.category === 'discipline' && r.status !== 'resolved').length;
+  const climate = adminReports.filter(r => r.category === 'climate' && r.status !== 'resolved').length;
+  const pending = adminInitiatives.filter(i => i.status === 'pending').length;
+  const stats = [
+    { label: 'דחוף פתוח', value: urgent, color: 'bg-red-50 border-red-200', text: 'text-red-600', dot: 'bg-red-500' },
+    { label: 'משמעת פתוח', value: discipline, color: 'bg-amber-50 border-amber-200', text: 'text-amber-600', dot: 'bg-amber-500' },
+    { label: 'אקלים פתוח', value: climate, color: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-600', dot: 'bg-emerald-500' },
+    { label: 'יוזמות חדשות', value: pending, color: 'bg-blue-50 border-blue-200', text: 'text-blue-600', dot: 'bg-blue-500' },
+  ];
+  document.getElementById('admin-stats').innerHTML = stats.map(s => `
+    <div class="rounded-2xl border ${s.color} p-5 flex items-center gap-4">
+      <div class="w-3 h-3 rounded-full ${s.dot} flex-shrink-0"></div>
+      <div><div class="text-3xl font-extrabold ${s.text}">${s.value}</div><div class="text-xs text-slate-500">${s.label}</div></div>
+    </div>`).join('');
+}
+
+function setAdminTab(tab) {
+  adminTab = tab;
+  const tabs = ['reports', 'initiatives'];
+  tabs.forEach(t => {
+    const btn = document.getElementById('tab-' + t);
+    if (t === tab) btn.className = 'flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-white text-slate-900 shadow-sm transition-all';
+    else btn.className = 'flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-700 transition-all';
+  });
+
+  if (tab === 'reports') {
+    document.getElementById('admin-reports-list').classList.remove('hidden');
+    document.getElementById('admin-initiatives-list').classList.add('hidden');
+    renderAdminReports();
+  } else {
+    document.getElementById('admin-reports-list').classList.add('hidden');
+    document.getElementById('admin-initiatives-list').classList.remove('hidden');
+    renderAdminInitiatives();
+  }
+}
+
+function renderAdminReports() {
+  const list = document.getElementById('admin-reports-list');
+  list.innerHTML = '';
+  if (adminReports.length === 0) {
+    list.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-4"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      <p class="text-slate-500 font-medium">אין דיווחים פתוחים. כל הכבוד!</p></div>`;
+    return;
+  }
+  adminReports.forEach(report => {
+    const div = document.createElement('div');
+    div.className = `bg-white rounded-2xl border-2 ${catBorder[report.category]} shadow-sm overflow-hidden`;
+    div.innerHTML = `
+      <div class="${catBg[report.category]} px-6 py-4 cursor-pointer" onclick="toggleAdminReport('${report.id}')">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${catBadge[report.category]}">${categoryLabels[report.category]}</span>
+              <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${statusColors[report.status]}">${statusLabels[report.status]}</span>
+              ${!report.is_anonymous && report.reporter_name ? `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">${escHtml(report.reporter_name)}</span>` : ''}
+              ${report.is_anonymous ? '<span class="text-xs text-slate-400">אנונימי</span>' : ''}
+              ${report.messages.length > 0 ? `<span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-600">${report.messages.length} הודעות</span>` : ''}
+            </div>
+            <h3 class="font-bold text-slate-900 text-lg">${escHtml(report.title)}</h3>
+            <div class="text-slate-400 text-xs mt-1">${formatDate(report.created_at)}${report.location ? ' · ' + escHtml(report.location) : ''}</div>
+          </div>
+          <div class="text-slate-400" id="chevron-ar-${report.id}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+      </div>
+      <div id="ar-body-${report.id}" class="hidden px-6 py-5 space-y-5">
+        <div class="bg-slate-50 rounded-xl p-4">
+          <p class="text-sm font-semibold text-slate-500 mb-1">תיאור</p>
+          <p class="text-slate-700 whitespace-pre-wrap">${escHtml(report.description)}</p>
+          ${report.media_url ? `<a href="${escHtml(report.media_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 mt-3 text-sm text-blue-600 hover:underline">צפה בקובץ מצורף</a>` : ''}
+        </div>
+        <div>
+          <p class="text-sm font-semibold text-slate-700 mb-2">עדכן סטטוס</p>
+          <div class="flex gap-2 flex-wrap">
+            ${['open', 'in_progress', 'resolved'].map(s => `
+              <button onclick="updateReportStatus('${report.id}','${s}')" class="px-4 py-2 rounded-xl text-xs font-semibold transition-all ${report.status === s ? statusColors[s] + ' cursor-default' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                ${statusLabels[s]}
+              </button>`).join('')}
+          </div>
+        </div>
+        <div>
+          <h4 class="font-bold text-slate-800 mb-3">צ'אט אנונימי עם המדווח</h4>
+          <div id="chat-ar-${report.id}" class="space-y-3 mb-3 max-h-64 overflow-y-auto">
+            ${report.messages.length === 0
+              ? '<p class="text-slate-400 text-sm text-center py-4 bg-slate-50 rounded-xl">שלח הודעה ראשונה — המדווח יראה אותה אנונימית</p>'
+              : report.messages.map(msg => `
+                <div class="flex ${msg.sender_role === 'admin' ? 'justify-start' : 'justify-end'}">
+                  <div class="max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${msg.sender_role === 'admin' ? 'bg-amber-100 text-amber-900 rounded-tr-sm' : 'bg-slate-100 text-slate-800 rounded-tl-sm'}">
+                    <p>${escHtml(msg.content)}</p>
+                    <p class="text-xs mt-1 opacity-60">${msg.sender_role === 'admin' ? 'הנהלה' : 'מדווח'} · ${formatDate(msg.created_at)}</p>
+                  </div>
+                </div>`).join('')}
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="reply-ar-${report.id}" placeholder="שלח הודעה למדווח האנונימי..." class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAdminReply('${report.id}')}" />
+            <button onclick="sendAdminReply('${report.id}')" class="bg-amber-500 text-white p-2.5 rounded-xl hover:bg-amber-600 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function toggleAdminReport(id) {
+  const body = document.getElementById('ar-body-' + id);
+  const chevron = document.getElementById('chevron-ar-' + id);
+  const isOpen = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', isOpen);
+  chevron.innerHTML = isOpen
+    ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`;
+}
+
+async function updateReportStatus(reportId, status) {
+  await sb.from('reports').update({ status }).eq('id', reportId);
+  await loadAdminData();
+}
+
+async function sendAdminReply(reportId) {
+  const input = document.getElementById('reply-ar-' + reportId);
+  const text = input ? input.value.trim() : '';
+  if (!text) return;
+  input.value = '';
+  await sb.from('report_messages').insert({ report_id: reportId, sender_role: 'admin', content: text });
+  await loadAdminData();
+}
+
+function renderAdminInitiatives() {
+  const list = document.getElementById('admin-initiatives-list');
+  list.innerHTML = '';
+  if (adminInitiatives.length === 0) {
+    list.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+      <p class="text-slate-500 font-medium">אין יוזמות עדיין</p></div>`;
+    return;
+  }
+  adminInitiatives.forEach(init => {
+    const div = document.createElement('div');
+    div.className = 'bg-white rounded-2xl border border-slate-200 shadow-sm p-6';
+    div.innerHTML = `
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${initCatColors[init.category]}">${initCatLabels[init.category]}</span>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${statusColors[init.status]}">${statusLabels[init.status]}</span>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">${init.vote_count || 0} תמיכות</span>
+          </div>
+          <h3 class="font-bold text-slate-900 text-lg mb-1">${escHtml(init.title)}</h3>
+          <p class="text-slate-500 text-sm mb-2">${escHtml(init.description)}</p>
+          <p class="text-xs text-slate-400">${init.is_anonymous ? 'תלמיד אנונימי' : escHtml(init.submitter_name)} · ${formatDate(init.created_at)}</p>
+        </div>
+      </div>
+      <div class="mt-5 border-t border-slate-100 pt-5">
+        <p class="text-sm font-semibold text-slate-700 mb-2">תגובה ועדכון סטטוס</p>
+        <textarea id="admin-resp-${init.id}" rows="2" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none mb-3" placeholder="כתוב תגובה לתלמיד (אופציונלי)...">${escHtml(init.admin_response || '')}</textarea>
+        <div class="flex gap-2 flex-wrap">
+          ${['pending', 'approved', 'in_progress', 'done', 'rejected'].map(s => `
+            <button onclick="updateInitiativeStatus('${init.id}','${s}')" class="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${init.status === s ? statusColors[s] + ' ring-2 ring-offset-1 ring-current' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+              ${statusLabels[s]}
+            </button>`).join('')}
+        </div>
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+async function updateInitiativeStatus(id, status) {
+  const respEl = document.getElementById('admin-resp-' + id);
+  const response = respEl ? respEl.value.trim() : '';
+  await sb.from('initiatives').update({ status, admin_response: response }).eq('id', id);
+  await loadAdminData();
+}
+
+// ===== HELPERS =====
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ===== AUTH STATE =====
+sb.auth.onAuthStateChange((event, session) => {
+  (async () => {
+    if (!session) {
+      isAdmin = false;
+      updateAdminNavVisibility();
+      if (currentPage === 'admin') navigate('landing');
+    } else {
+      isAdmin = !!session.user?.email;
+      updateAdminNavVisibility();
+    }
+  })();
+});
+
+// ===== INIT =====
+(async () => {
+  const { data } = await sb.auth.getSession();
+  if (data.session?.user?.email) {
+    isAdmin = true;
+    updateAdminNavVisibility();
+  }
+  navigate('landing');
+})();
+</script>
+</body>
+</html>
